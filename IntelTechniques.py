@@ -1,10 +1,17 @@
-from playwright.sync_api import sync_playwright
+"""
+This module automates the process of capturing screenshots and saving HTML content from domains.
+"""
+
 import os
 import time
 import urllib.parse
+from playwright.sync_api import sync_playwright
 
 
 def create_dir(domain):
+    """
+    Creates a directory for the given domain if it doesn't exist.
+    """
     directory = os.path.join("results", domain)
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -12,10 +19,16 @@ def create_dir(domain):
 
 
 def sanitize_filename(filename):
+    """
+    Sanitizes the filename by allowing only alphanumeric characters, spaces, periods, and underscores.
+    """
     return "".join(c for c in filename if c.isalnum() or c in (' ', '.', '_')).rstrip()
 
 
 def save_page_content(page, directory, url):
+    """
+    Saves the screenshot, HTML content, and text content of a page.
+    """
     try:
         parsed_url = urllib.parse.urlparse(url)
         filename = sanitize_filename(
@@ -34,17 +47,21 @@ def save_page_content(page, directory, url):
         text_path = os.path.join(directory, f"{filename}.txt")
         with open(text_path, "w", encoding="utf-8") as text_file:
             text_file.write(page.inner_text("body"))
-    except Exception as e:
+    except (OSError, ValueError, RuntimeError) as e:
         print(f"Failed to save content for URL '{url}': {str(e)}")
 
 
-def run(playwright):
-    with open("urls.txt") as f:
+def run(pw):
+    """
+    Main function to run the Playwright script, automate browsing,
+    and save the content of pages.
+    """
+    with open("urls.txt", "r", encoding="utf-8") as f:
         domains = f.read().splitlines()
 
     for domain in domains:
         # Start a new browser session for each domain
-        browser = playwright.chromium.launch(headless=False)
+        browser = pw.chromium.launch(headless=False)
         context = browser.new_context()
         page = context.new_page()
         base_url = "https://inteltechniques.com/tools/Domain.html"
@@ -65,9 +82,8 @@ def run(playwright):
                 # Call the JavaScript function on the page (opens a new tab)
                 page.evaluate(f"{search_function}()")
 
-            except Exception as e:
-                print(
-                    f"Function '{search_function}' could not be processed: {str(e)}")
+            except (RuntimeError, ValueError) as e:
+                print(f"Function '{search_function}' could not be processed: {str(e)}")
 
         # Wait for a specific amount of time to allow all tabs to load
         time.sleep(10)  # Wait 10 seconds (adjust if necessary)
@@ -79,7 +95,7 @@ def run(playwright):
                 new_page.wait_for_load_state('networkidle', timeout=60000)
                 url = new_page.url
                 save_page_content(new_page, directory, url)
-            except Exception as e:
+            except (OSError, RuntimeError) as e:
                 print(f"Failed to save content for tab {i}: {str(e)}")
 
         # Close the entire browser session
